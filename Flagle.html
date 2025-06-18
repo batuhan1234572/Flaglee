@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flagle - Tüm Özellikler</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f2f2f2;
+      text-align: center;
+      padding: 20px;
+      margin: 0;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    body.dark {
+      background-color: #121212;
+      color: white;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 5px;
+    }
+    body.dark h1 {
+      color: #fff;
+    }
+    #score, #highScore, #timer {
+      font-size: 16px;
+      margin: 5px 0;
+    }
+    #flag {
+      width: 90%;
+      max-width: 250px;
+      height: auto;
+      margin: 20px auto;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    .options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 15px;
+      max-width: 400px;
+      margin: 0 auto 20px;
+    }
+    .options button {
+      padding: 12px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background-color: white;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      transition: transform 0.2s ease, background-color 0.3s ease;
+    }
+    body.dark .options button {
+      background-color: #1e1e1e;
+      color: white;
+    }
+    .options button:hover {
+      background-color: #e0e0e0;
+    }
+    #result {
+      font-size: 20px;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    /* Animasyonlar */
+    .correct {
+      animation: correctAnim 0.5s ease-in-out;
+    }
+    .wrong {
+      animation: wrongAnim 0.5s ease-in-out;
+    }
+
+    @keyframes correctAnim {
+      0% { transform: scale(1); background-color: #d4edda; }
+      50% { transform: scale(1.1); background-color: #c3e6cb; }
+      100% { transform: scale(1); background-color: #d4edda; }
+    }
+
+    @keyframes wrongAnim {
+      0% { transform: scale(1); background-color: #f8d7da; }
+      50% { transform: scale(1.1) rotate(2deg); background-color: #f5c6cb; }
+      100% { transform: scale(1); background-color: #f8d7da; }
+    }
+
+    #themeToggle {
+      margin: 10px;
+      padding: 8px 16px;
+      background-color: #ddd;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    body.dark #themeToggle {
+      background-color: #444;
+      color: white;
+    }
+
+    #scoreHistory {
+      list-style: none;
+      padding: 0;
+      margin-top: 20px;
+    }
+    #scoreHistory li {
+      padding: 5px;
+      margin: 2px 0;
+      background-color: #ddd;
+      border-radius: 5px;
+    }
+    body.dark #scoreHistory li {
+      background-color: #2a2a2a;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🌍 Flagle</h1>
+  <div id="score">Skor: 0</div>
+  <div id="highScore">En Yüksek: 0</div>
+  <div id="timer">Kalan Süre: 10 sn</div>
+  <img id="flag" src="" alt="Bayrak" />
+
+  <div class="options" id="options"></div>
+
+  <button onclick="loadNewQuestion()">Yeni Soru ➡️</button>
+  <button id="themeToggle" onclick="toggleTheme()">🌙 / ☀️</button>
+
+  <div id="result"></div>
+
+  <h3>Geçmiş Skorlar</h3>
+  <ul id="scoreHistory"></ul>
+
+  <!-- Ses Efektleri -->
+  <audio id="correctSound">
+    <source src="data:audio/mpeg;base64,//tQxAAACBQAA//8AAP///+nxBvIAAA==" type="audio/mpeg">
+  </audio>
+  <audio id="wrongSound">
+    <source src="data:audio/mpeg;base64,//tQxAQCCQAA//8AAP///+nxBvIAAA==" type="audio/mpeg">
+  </audio>
+
+  <script>
+    const countries = [
+      { name: "Turkey", flag: "https://upload.wikimedia.org/wikipedia/commons/b/b4/Flag_of_Turkey.svg"  },
+      { name: "Germany", flag: "https://upload.wikimedia.org/wikipedia/en/b/ba/Flag_of_Germany.svg"  },
+      { name: "France", flag: "https://upload.wikimedia.org/wikipedia/en/c/c3/Flag_of_France.svg"  },
+      { name: "Japan", flag: "https://upload.wikimedia.org/wikipedia/en/9/9e/Flag_of_Japan.svg"  },
+      { name: "Canada", flag: "https://upload.wikimedia.org/wikipedia/commons/d/d9/Flag_of_Canada_%28Pantone%29.svg"  },
+      { name: "Brazil", flag: "https://upload.wikimedia.org/wikipedia/commons/0/0d/Brazil_flag_large.png"  },
+      { name: "India", flag: "https://upload.wikimedia.org/wikipedia/en/4/41/Flag_of_India.svg"  },
+      { name: "Russia", flag: "https://upload.wikimedia.org/wikipedia/en/f/f3/Flag_of_Russia.svg"  },
+      { name: "China", flag: "https://upload.wikimedia.org/wikipedia/commons/f/fa/Flag_of_the_People%27s_Republic_of_China.svg"  },
+      { name: "Italy", flag: "https://upload.wikimedia.org/wikipedia/en/0/0d/Lake_Orta_Sunset.jpg"  }
+    ];
+
+    let currentCountry;
+    let score = 0;
+    let timerInterval;
+    let timeLeft = 10;
+
+    const highScoreKey = "flagle_high_score";
+
+    function getRandomCountry() {
+      return countries[Math.floor(Math.random() * countries.length)];
+    }
+
+    function generateOptions() {
+      const options = [currentCountry.name];
+      while (options.length < 4) {
+        const random = getRandomCountry().name;
+        if (!options.includes(random)) options.push(random);
+      }
+      return options.sort(() => Math.random() - 0.5);
+    }
+
+    function startTimer() {
+      timeLeft = 10;
+      document.getElementById("timer").textContent = `Kalan Süre: ${timeLeft} sn`;
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById("timer").textContent = `Kalan Süre: ${timeLeft} sn`;
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          checkAnswer(null, null, true);
+        }
+      }, 1000);
+    }
+
+    function loadNewQuestion() {
+      currentCountry = getRandomCountry();
+      document.getElementById("flag").src = currentCountry.flag;
+
+      const options = generateOptions();
+
+      const optionsDiv = document.getElementById("options");
+      optionsDiv.innerHTML = "";
+
+      options.forEach(option => {
+        const btn = document.createElement("button");
+        btn.textContent = option;
+        btn.onclick = () => checkAnswer(btn, option);
+        optionsDiv.appendChild(btn);
+      });
+
+      startTimer();
+      document.getElementById("result").textContent = "";
+    }
+
+    function checkAnswer(button, selected, timeout = false) {
+      clearInterval(timerInterval);
+      const result = document.getElementById("result");
+      const correctSound = document.getElementById("correctSound");
+      const wrongSound = document.getElementById("wrongSound");
+
+      if (timeout) {
+        result.textContent = `⏰ Zaman doldu! Doğru cevap: ${currentCountry.name}`;
+        score = 0;
+        wrongSound.currentTime = 0;
+        wrongSound.play().catch(() => {});
+      } else if (selected === currentCountry.name) {
+        const bonus = Math.max(1, Math.floor(timeLeft / 2));
+        score += bonus;
+        result.textContent = `✅ +${bonus} Puan!`;
+        button.classList.add("correct");
+        correctSound.currentTime = 0;
+        correctSound.play().catch(() => {});
+      } else {
+        result.textContent = `❌ Yanlış! Doğru cevap: ${currentCountry.name}`;
+        score = 0;
+        button.classList.add("wrong");
+        wrongSound.currentTime = 0;
+        wrongSound.play().catch(() => {});
+      }
+
+      document.getElementById("score").textContent = `Skor: ${score}`;
+      updateHighScore(score);
+      addScoreToHistory(score);
+      setTimeout(loadNewQuestion, 2000);
+    }
+
+    function updateHighScore(newScore) {
+      const current = parseInt(localStorage.getItem(highScoreKey)) || 0;
+      if (newScore > current) {
+        localStorage.setItem(highScoreKey, newScore);
+        document.getElementById("highScore").textContent = `En Yüksek: ${newScore}`;
+      }
+    }
+
+    function addScoreToHistory(score) {
+      let history = JSON.parse(localStorage.getItem("scoreHistory") || "[]");
+      history.push(score);
+      history.sort((a, b) => b - a);
+      history = history.slice(0, 5);
+      localStorage.setItem("scoreHistory", JSON.stringify(history));
+      showScoreHistory();
+    }
+
+    function showScoreHistory() {
+      const history = JSON.parse(localStorage.getItem("scoreHistory")) || [];
+      const list = document.getElementById("scoreHistory");
+      list.innerHTML = "";
+      history.forEach(s => {
+        const li = document.createElement("li");
+        li.textContent = s;
+        list.appendChild(li);
+      });
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle("dark");
+    }
+
+    // Başlat
+    updateHighScore(0);
+    addScoreToHistory(0);
+    loadNewQuestion();
+  </script>
+</body>
+</html>
